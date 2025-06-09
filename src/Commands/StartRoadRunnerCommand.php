@@ -63,6 +63,8 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
             return 1;
         }
 
+        $this->ensureRoadRunnerBinaryMeetsRequirements($roadRunnerBinary);
+
         $this->writeServerStateFile($serverStateFile);
 
         touch(base_path('.rr.yaml'));
@@ -194,7 +196,7 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
      * Calculate the elapsed time for a request.
      *
      * @param  string  $elapsed
-     * @return int
+     * @return float
      */
     protected function calculateElapsedTime(string $elapsed): float
     {
@@ -203,10 +205,10 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
         }
 
         if (Str::endsWith($elapsed, 'µs')) {
-            return $elapsed * 0.001;
+            return mb_substr($elapsed, 0, -2) * 0.001;
         }
 
-        return $elapsed * 1000;
+        return (float) $elapsed * 1000;
     }
 
     /**
