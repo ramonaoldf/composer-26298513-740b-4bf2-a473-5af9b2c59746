@@ -48,7 +48,9 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
      */
     public function handle(ServerProcessInspector $inspector, ServerStateFile $serverStateFile)
     {
-        if (! $this->ensureRoadRunnerPackageIsInstalled()) {
+        if (! $this->isRoadRunnerInstalled()) {
+            $this->error('RoadRunner not installed. Please execute the `octane:install` Artisan command.');
+
             return 1;
         }
 
@@ -114,7 +116,7 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
     {
         return $this->option('workers') == 'auto'
                             ? 0
-                            : $this->option('workers', 0);
+                            : $this->option('workers');
     }
 
     /**
@@ -150,15 +152,11 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
                 if ($debug['level'] == 'debug' && isset($debug['remote'])) {
                     [$statusCode, $method, $url] = explode(' ', $debug['msg']);
 
-                    $elapsed = Str::endsWith($debug['elapsed'], 'ms')
-                        ? substr($debug['elapsed'], 0, -2)
-                        : substr($debug['elapsed'], 0, -1) * 1000;
-
                     return $this->requestInfo([
                         'method' => $method,
                         'url' => $url,
                         'statusCode' => $statusCode,
-                        'duration' => (float) $elapsed,
+                        'duration' => $this->calculateElapsedTime($debug['elapsed']),
                     ]);
                 }
             });
@@ -171,5 +169,36 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
                     $this->error($output);
                 }
             });
+    }
+
+    /**
+     * Calculate the elapsed time for a request.
+     *
+     * @param  string  $elapsed
+     * @return int
+     */
+    protected function calculateElapsedTime(string $elapsed): float
+    {
+        if (Str::endsWith($elapsed, 'ms')) {
+            return substr($elapsed, 0, -2);
+        }
+
+        if (Str::endsWith($elapsed, 'µs')) {
+            return $elapsed * 0.001;
+        }
+
+        return $elapsed * 1000;
+    }
+
+    /**
+     * Stop the server.
+     *
+     * @return void
+     */
+    protected function stopServer()
+    {
+        $this->callSilent('octane:stop', [
+            '--server' => 'roadrunner',
+        ]);
     }
 }

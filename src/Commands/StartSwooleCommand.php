@@ -54,6 +54,12 @@ class StartSwooleCommand extends Command implements SignalableCommandInterface
         ServerStateFile $serverStateFile,
         SwooleExtension $extension
     ) {
+        if (! $extension->isInstalled()) {
+            $this->error('The Swoole extension is missing.');
+
+            return 1;
+        }
+
         if ($inspector->serverIsRunning()) {
             $this->error('Server is already running.');
 
@@ -128,7 +134,7 @@ class StartSwooleCommand extends Command implements SignalableCommandInterface
     {
         return $this->option('workers') === 'auto'
                     ? $extension->cpuCount()
-                    : $this->option('workers', 1);
+                    : $this->option('workers');
     }
 
     /**
@@ -141,7 +147,7 @@ class StartSwooleCommand extends Command implements SignalableCommandInterface
     {
         return $this->option('task-workers') === 'auto'
                     ? $extension->cpuCount()
-                    : $this->option('task-workers', 1);
+                    : $this->option('task-workers');
     }
 
     /**
@@ -182,5 +188,17 @@ class StartSwooleCommand extends Command implements SignalableCommandInterface
                     ));
                 }
             });
+    }
+
+    /**
+     * Stop the server.
+     *
+     * @return void
+     */
+    protected function stopServer()
+    {
+        $this->callSilent('octane:stop', [
+            '--server' => 'swoole',
+        ]);
     }
 }

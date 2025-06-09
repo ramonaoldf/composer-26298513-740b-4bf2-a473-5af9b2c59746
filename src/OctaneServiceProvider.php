@@ -60,6 +60,7 @@ class OctaneServiceProvider extends ServiceProvider
             return new SwooleServerProcessInspector(
                 $app->make(SignalDispatcher::class),
                 $app->make(SwooleServerStateFile::class),
+                $app->make(Exec::class),
             );
         });
 
@@ -168,6 +169,7 @@ class OctaneServiceProvider extends ServiceProvider
                 Commands\StartRoadRunnerCommand::class,
                 Commands\StartSwooleCommand::class,
                 Commands\ReloadCommand::class,
+                Commands\StatusCommand::class,
                 Commands\StopCommand::class,
             ]);
         }
