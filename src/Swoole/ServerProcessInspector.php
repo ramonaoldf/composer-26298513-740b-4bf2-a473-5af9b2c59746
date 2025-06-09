@@ -2,13 +2,14 @@
 
 namespace Laravel\Octane\Swoole;
 
-use Swoole\Process;
+use Laravel\Octane\Exec;
 
 class ServerProcessInspector
 {
     public function __construct(
         protected SignalDispatcher $dispatcher,
-        protected ServerStateFile $serverStateFile
+        protected ServerStateFile $serverStateFile,
+        protected Exec $exec,
     ) {
     }
 
@@ -55,7 +56,12 @@ class ServerProcessInspector
             'managerProcessId' => $managerProcessId
         ] = $this->serverStateFile->read();
 
-        return $this->dispatcher->terminate($masterProcessId, 15)
-            && $this->dispatcher->terminate($managerProcessId, 15);
+        $workerProcessIds = $this->exec->run('pgrep -P '.$managerProcessId);
+
+        foreach ([$masterProcessId, $managerProcessId, ...$workerProcessIds] as $processId) {
+            $this->dispatcher->signal($processId, SIGKILL);
+        }
+
+        return true;
     }
 }

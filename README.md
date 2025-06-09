@@ -29,8 +29,6 @@ After installing Octane, you may execute the `octane:install` Artisan command:
 php artisan octane:install
 ```
 
-Finally, specify your preferred application server (`roadrunner` or `swoole`) in your application's `config/octane.php` configuration file.
-
 ### Server Prerequisites
 
 > **Laravel Octane requires [PHP 8.0+](https://php.net/releases/)**
@@ -162,6 +160,22 @@ You may gracefully restart the Octane server's application workers using the `oc
 
 ```bash
 php artisan octane:reload
+```
+
+#### Checking The Server Status
+
+You may check the current status of the Octane server using the `octane:status` Artisan command:
+
+```bash
+php artisan octane:status
+```
+
+### Stopping The Server
+
+You may stop the Octane server using the `octane:stop` Artisan command:
+
+```bash
+php artisan octane:stop
 ```
 
 ### Dependency Injection & Octane

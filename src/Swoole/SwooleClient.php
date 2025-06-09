@@ -108,8 +108,8 @@ class SwooleClient implements Client, ServesStaticFiles
     /**
      * Determine if the given file is servable.
      *
-     * @param  string $publicPath
-     * @param  string $pathToFile
+     * @param  string  $publicPath
+     * @param  string  $pathToFile
      * @return bool
      */
     protected function fileIsServable(string $publicPath, string $pathToFile): bool
@@ -230,7 +230,11 @@ class SwooleClient implements Client, ServesStaticFiles
 
         $content = $octaneResponse->response->getContent();
 
-        $length = strlen($content);
+        if (($length = strlen($content)) === 0) {
+            $swooleResponse->end();
+
+            return;
+        }
 
         if ($length <= $this->chunkSize) {
             $swooleResponse->write($content);
