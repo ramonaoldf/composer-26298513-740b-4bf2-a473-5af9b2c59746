@@ -21,7 +21,9 @@ trait InteractsWithIO
      * @var array
      */
     protected $ignoreMessages = [
+        'destroy signal received',
         'scan command',
+        'sending stop request to the worker',
         'stop signal received, grace timeout is: ',
         'exit forced',
         'worker allocated',
@@ -183,9 +185,11 @@ trait InteractsWithIO
             $outputTrace = function ($trace, $number) {
                 $number++;
 
-                ['line' => $line, 'file' => $file] = $trace;
+                if (isset($trace['line'])) {
+                    ['line' => $line, 'file' => $file] = $trace;
 
-                $this->line("  <fg=yellow>$number</>   $file:$line");
+                    $this->line("  <fg=yellow>$number</>   $file:$line");
+                }
             };
 
             $outputTrace($throwable, -1);
