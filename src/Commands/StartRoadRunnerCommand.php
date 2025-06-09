@@ -82,8 +82,14 @@ class StartRoadRunnerCommand extends Command implements SignalableCommandInterfa
             '-o', app()->environment('local') ? 'logs.level=debug' : 'logs.level=warning',
             '-o', 'logs.output=stdout',
             '-o', 'logs.encoding=json',
-            'serve',
-        ]), base_path(), ['APP_BASE_PATH' => base_path(), 'LARAVEL_OCTANE' => 1], null, null))->start();
+            '--dotenv=""', 'serve',
+        ]), base_path(), collect(array_merge($_ENV, [
+            'APP_BASE_PATH' => base_path(),
+            'LARAVEL_OCTANE' => 1, ]))->mapWithKeys(function ($value, $key) {
+                return in_array($key, ['APP_ENV', 'APP_BASE_PATH', 'LARAVEL_OCTANE'])
+                        ? [$key => $value]
+                        : [$key => false];
+            })->all(), null, null))->start();
 
         $serverStateFile->writeProcessId($server->getPid());
 
