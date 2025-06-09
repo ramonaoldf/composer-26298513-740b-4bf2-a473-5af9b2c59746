@@ -12,7 +12,7 @@ class GiveNewApplicationInstanceToBroadcastManager
      * @param  mixed  $event
      * @return void
      */
-    public function handle($event)
+    public function handle($event): void
     {
         if (! $event->sandbox->resolved(BroadcastManager::class)) {
             return;
@@ -20,7 +20,9 @@ class GiveNewApplicationInstanceToBroadcastManager
 
         with($event->sandbox->make(BroadcastManager::class), function ($manager) use ($event) {
             $manager->setApplication($event->sandbox);
-            $manager->forgetDrivers();
+
+            // Forgetting drivers will flush all channel routes which is unwanted...
+            // $manager->forgetDrivers();
         });
     }
 }
