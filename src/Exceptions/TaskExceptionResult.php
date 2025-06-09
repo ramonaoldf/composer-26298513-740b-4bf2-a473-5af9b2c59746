@@ -2,8 +2,6 @@
 
 namespace Laravel\Octane\Exceptions;
 
-use Throwable;
-
 class TaskExceptionResult
 {
     public function __construct(
@@ -13,7 +11,6 @@ class TaskExceptionResult
         protected string $file,
         protected int $line,
     ) {
-        //
     }
 
     /**
@@ -29,7 +26,7 @@ class TaskExceptionResult
             : null;
 
         return new static(
-            get_class($throwable),
+            $throwable::class,
             $throwable->getMessage(),
             (int) $throwable->getCode(),
             $fallbackTrace['file'] ?? $throwable->getFile(),
@@ -40,10 +37,16 @@ class TaskExceptionResult
     /**
      * Gets the original throwable.
      *
-     * @return \Laravel\Octane\Exceptions\TaskException
+     * @return \Laravel\Octane\Exceptions\TaskException|\Laravel\Octane\Exceptions\DdException
      */
     public function getOriginal()
     {
+        if ($this->class == DdException::class) {
+            return new DdException(
+                json_decode($this->message, true)
+            );
+        }
+
         return new TaskException(
             $this->class,
             $this->message,

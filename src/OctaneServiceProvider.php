@@ -14,6 +14,7 @@ use Laravel\Octane\Cache\OctaneArrayStore;
 use Laravel\Octane\Cache\OctaneStore;
 use Laravel\Octane\Contracts\DispatchesCoroutines;
 use Laravel\Octane\Events\TickReceived;
+use Laravel\Octane\Exceptions\DdException;
 use Laravel\Octane\Exceptions\TaskException;
 use Laravel\Octane\Exceptions\TaskTimeoutException;
 use Laravel\Octane\Facades\Octane as OctaneFacade;
@@ -185,11 +186,11 @@ class OctaneServiceProvider extends ServiceProvider
                     unserialize(Crypt::decryptString($request->input('tasks'))),
                     $request->input('wait')
                 )), 200);
-            } catch (DecryptException $e) {
+            } catch (DecryptException) {
                 return new Response('', 403);
-            } catch (TaskException $e) {
+            } catch (TaskException | DdException) {
                 return new Response('', 500);
-            } catch (TaskTimeoutException $e) {
+            } catch (TaskTimeoutException) {
                 return new Response('', 504);
             }
         });
@@ -199,7 +200,7 @@ class OctaneServiceProvider extends ServiceProvider
                 (new SwooleTaskDispatcher)->dispatch(
                     unserialize(Crypt::decryptString($request->input('tasks'))),
                 );
-            } catch (DecryptException $e) {
+            } catch (DecryptException) {
                 return new Response('', 403);
             }
 
