@@ -6,6 +6,7 @@ use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Octane\FrankenPhp\Concerns\FindsFrankenPhpBinary;
+use RuntimeException;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -53,7 +54,7 @@ trait InstallsFrankenPhpDependencies
     /**
      * Download the latest version of the FrankenPHP binary.
      *
-     * @return bool
+     * @return string
      */
     protected function downloadFrankenPhpBinary()
     {
@@ -66,9 +67,7 @@ trait InstallsFrankenPhpDependencies
         };
 
         if ($assetName === null) {
-            $this->error('FrankenPHP binaries are currently only available for Linux (x86_64) and macOS. Other systems should use the Docker images or compile FrankenPHP manually.');
-
-            return false;
+            throw new RuntimeException('FrankenPHP binaries are currently only available for Linux (x86_64) and macOS. Other systems should use the Docker images or compile FrankenPHP manually.');
         }
 
         $assets = Http::accept('application/vnd.github+json')
@@ -114,20 +113,18 @@ trait InstallsFrankenPhpDependencies
             return $path;
         }
 
-        $this->error('FrankenPHP asset not found.');
-
-        return $path;
+        throw new RuntimeException('FrankenPHP asset not found.');
     }
 
     /**
      * Ensure the installed FrankenPHP binary meets Octane's requirements.
      *
-     * @param  string  $frakenPhpBinary
+     * @param  string  $frankenPhpBinary
      * @return void
      */
-    protected function ensureFrankenPhpBinaryMeetsRequirements($frakenPhpBinary)
+    protected function ensureFrankenPhpBinaryMeetsRequirements($frankenPhpBinary)
     {
-        $buildInfo = tap(new Process([$frakenPhpBinary, 'build-info'], base_path()))
+        $buildInfo = tap(new Process([$frankenPhpBinary, 'build-info'], base_path()))
             ->run()
             ->getOutput();
 
@@ -157,19 +154,19 @@ trait InstallsFrankenPhpDependencies
         $this->warn("Your FrankenPHP binary version (<fg=red>$version</>) may be incompatible with Octane.");
 
         if ($this->confirm('Should Octane download the latest FrankenPHP binary version for your operating system?', true)) {
-            rename($frakenPhpBinary, "$frakenPhpBinary.backup");
+            rename($frankenPhpBinary, "$frankenPhpBinary.backup");
 
             try {
                 $this->downloadFrankenPhpBinary();
             } catch (Throwable $e) {
                 report($e);
 
-                rename("$frakenPhpBinary.backup", $frakenPhpBinary);
+                rename("$frankenPhpBinary.backup", $frankenPhpBinary);
 
-                return $this->warn('Unable to download FrankenPHP binary. The HTTP request exception has been logged.');
+                return $this->warn('Unable to download FrankenPHP binary. The underlying error has been logged.');
             }
 
-            unlink("$frakenPhpBinary.backup");
+            unlink("$frankenPhpBinary.backup");
         }
     }
 }
