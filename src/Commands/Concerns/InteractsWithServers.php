@@ -2,6 +2,7 @@
 
 namespace Laravel\Octane\Commands\Concerns;
 
+use InvalidArgumentException;
 use Laravel\Octane\Exceptions\ServerShutdownException;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -52,13 +53,20 @@ trait InteractsWithServers
                     $this->info('Application change detected. Restarting workers…');
 
                     $inspector->reloadServer();
+                } elseif ($watcher->isTerminated()) {
+                    $this->error(
+                        'Watcher process has terminated. Please ensure Node and chokidar are installed.'.PHP_EOL.
+                        $watcher->getErrorOutput()
+                    );
+
+                    return 1;
                 }
 
                 usleep(500 * 1000);
             }
 
             $this->writeServerOutput($server);
-        } catch (ServerShutdownException $e) {
+        } catch (ServerShutdownException) {
             return 1;
         } finally {
             $this->stopServer();
@@ -83,8 +91,16 @@ trait InteractsWithServers
             };
         }
 
+        if (empty($paths = config('octane.watch'))) {
+            throw new InvalidArgumentException(
+                'List of directories/files to watch not found. Please update your "config/octane.php" configuration file.',
+            );
+        }
+
         return tap(new Process([
-            (new ExecutableFinder)->find('node'), 'file-watcher.js', base_path(),
+            (new ExecutableFinder)->find('node'),
+            'file-watcher.js',
+            json_encode(collect(config('octane.watch'))->map(fn ($path) => base_path($path))),
         ], realpath(__DIR__.'/../../../bin'), null, null, null))->start();
     }
 
@@ -113,7 +129,7 @@ trait InteractsWithServers
             '',
             '  Local: <fg=white;options=bold>http://'.$this->option('host').':'.$this->option('port').' </>',
             '',
-            '  <fg=yellow>Use Ctrl+C to stop the server</>',
+            '  <fg=yellow>Press Ctrl+C to stop the server</>',
             '',
         ]);
     }

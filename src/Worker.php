@@ -3,6 +3,7 @@
 namespace Laravel\Octane;
 
 use Closure;
+use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Laravel\Octane\Contracts\Client;
@@ -86,12 +87,20 @@ class Worker implements WorkerContract
         try {
             $responded = false;
 
+            ob_start();
+
+            $response = $gateway->handle($request);
+
+            $output = ob_get_contents();
+
+            ob_end_clean();
+
             // Here we will actually hand the incoming request to the Laravel application so
             // it can generate a response. We'll send this response back to the client so
             // it can be returned to a browser. This gateway will also dispatch events.
             $this->client->respond(
                 $context,
-                $response = $gateway->handle($request),
+                $octaneResponse = new OctaneResponse($response, $output),
             );
 
             $responded = true;
@@ -102,10 +111,15 @@ class Worker implements WorkerContract
         } catch (Throwable $e) {
             $this->handleWorkerError($e, $sandbox, $request, $context, $responded);
         } finally {
+            $sandbox->flush();
+
+            $this->app->make('view.engine.resolver')->forget('blade');
+            $this->app->make('view.engine.resolver')->forget('php');
+
             // After the request handling process has completed we will unset some variables
             // plus reset the current application state back to its original state before
             // it was cloned. Then we will be ready for the next worker iteration loop.
-            unset($gateway, $sandbox, $request, $response);
+            unset($gateway, $sandbox, $request, $response, $octaneResponse, $output);
 
             CurrentApplication::set($this->app);
         }
@@ -139,7 +153,7 @@ class Worker implements WorkerContract
         } finally {
             // After the request handling process has completed we will unset some variables
             // plus reset the current application state back to its original state before
-            // it wax cloned. Then we will be ready for the next worker iteration loop.
+            // it was cloned. Then we will be ready for the next worker iteration loop.
             unset($sandbox);
 
             CurrentApplication::set($this->app);
@@ -198,6 +212,7 @@ class Worker implements WorkerContract
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Symfony\Component\HttpFoundation\Response  $response
+     * @param  \Illuminate\Foundation\Application  $sandbox
      * @return void
      */
     protected function invokeRequestHandledCallbacks($request, $response, $sandbox): void

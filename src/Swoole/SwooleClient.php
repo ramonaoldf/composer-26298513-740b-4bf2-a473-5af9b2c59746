@@ -9,6 +9,7 @@ use Laravel\Octane\Contracts\Client;
 use Laravel\Octane\Contracts\ServesStaticFiles;
 use Laravel\Octane\MimeType;
 use Laravel\Octane\Octane;
+use Laravel\Octane\OctaneResponse;
 use Laravel\Octane\RequestContext;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -18,6 +19,10 @@ use Throwable;
 
 class SwooleClient implements Client, ServesStaticFiles
 {
+    public function __construct(protected int $chunkSize = 1048576)
+    {
+    }
+
     /**
      * Marshal the given request context into an Illuminate request.
      *
@@ -51,17 +56,60 @@ class SwooleClient implements Client, ServesStaticFiles
 
         $publicPath = $context->publicPath;
 
+        $pathToFile = realpath($publicPath.'/'.$request->path());
+
+        if ($this->isValidFileWithinSymlink($request, $publicPath, $pathToFile)) {
+            $pathToFile = $publicPath.'/'.$request->path();
+        }
+
         return $this->fileIsServable(
             $publicPath,
-            realpath($publicPath.'/'.$request->path()),
+            $pathToFile,
         );
+    }
+
+    /**
+     * Determine if the request is for a valid static file within a symlink.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string  $publicPath
+     * @param  string  $pathToFile
+     * @return bool
+     */
+    private function isValidFileWithinSymlink(Request $request, string $publicPath, string $pathToFile): bool
+    {
+        $pathAfterSymlink = $this->pathAfterSymlink($publicPath, $request->path());
+
+        return $pathAfterSymlink && str_ends_with($pathToFile, $pathAfterSymlink);
+    }
+
+    /**
+     * If the given public file is within a symlinked directory, return the path after the symlink.
+     *
+     * @param  string  $publicPath
+     * @param  string  $path
+     * @return string|bool
+     */
+    private function pathAfterSymlink(string $publicPath, string $path)
+    {
+        $directories = explode('/', $path);
+
+        while ($directory = array_shift($directories)) {
+            $publicPath .= '/'.$directory;
+
+            if (is_link($publicPath)) {
+                return implode('/', $directories);
+            }
+        }
+
+        return false;
     }
 
     /**
      * Determine if the given file is servable.
      *
-     * @param  string  $publicPath
-     * @param  string  $pathToFile
+     * @param  string $publicPath
+     * @param  string $pathToFile
      * @return bool
      */
     protected function fileIsServable(string $publicPath, string $pathToFile): bool
@@ -69,7 +117,7 @@ class SwooleClient implements Client, ServesStaticFiles
         return $pathToFile &&
                ! in_array(pathinfo($pathToFile, PATHINFO_EXTENSION), ['php', 'htaccess', 'config']) &&
                str_starts_with($pathToFile, $publicPath) &&
-               is_file($pathToFile) && filesize($pathToFile);
+               is_file($pathToFile);
     }
 
     /**
@@ -94,19 +142,19 @@ class SwooleClient implements Client, ServesStaticFiles
      * Send the response to the server.
      *
      * @param  \Laravel\Octane\RequestContext  $context
-     * @param  \Symfony\Component\HttpFoundation\Response  $response
+     * @param  \Laravel\Octane\OctaneResponse  $octaneResponse
      * @return void
      */
-    public function respond(RequestContext $context, Response $response): void
+    public function respond(RequestContext $context, OctaneResponse $octaneResponse): void
     {
-        $this->sendResponseHeaders($response, $context->swooleResponse);
-        $this->sendResponseContent($response, $context->swooleResponse);
+        $this->sendResponseHeaders($octaneResponse->response, $context->swooleResponse);
+        $this->sendResponseContent($octaneResponse, $context->swooleResponse);
     }
 
     /**
      * Send the headers from the Illuminate response to the Swoole response.
      *
-     * @param  \Symfony\Component\HtpFoundation\Response  $response
+     * @param  \Symfony\Component\HttpFoundation\Response  $response
      * @param  \Swoole\Http\Response  $response
      * @return void
      */
@@ -144,34 +192,52 @@ class SwooleClient implements Client, ServesStaticFiles
     }
 
     /**
-     * Send the headers from the Illuminate response to the Swoole response.
+     * Send the content from the Illuminate response to the Swoole response.
      *
-     * @param  \Symfony\Component\HtpFoundation\Response  $response
+     * @param  \Laravel\Octane\OctaneResponse  $response
      * @param  \Swoole\Http\Response  $response
      * @return void
      */
-    protected function sendResponseContent(Response $response, SwooleResponse $swooleResponse): void
+    protected function sendResponseContent(OctaneResponse $octaneResponse, SwooleResponse $swooleResponse): void
     {
-        if ($response instanceof StreamedResponse && property_exists($response, 'output')) {
-            $swooleResponse->end($response->output);
-
-            return;
-        } elseif ($response instanceof BinaryFileResponse) {
-            $swooleResponse->sendfile($response->getFile()->getPathname());
+        if ($octaneResponse->response instanceof BinaryFileResponse) {
+            $swooleResponse->sendfile($octaneResponse->response->getFile()->getPathname());
 
             return;
         }
 
-        $content = $response->getContent();
+        if ($octaneResponse->outputBuffer) {
+            $swooleResponse->write($octaneResponse->outputBuffer);
+        }
 
-        if (strlen($content) <= 8192) {
-            $swooleResponse->end($content);
+        if ($octaneResponse->response instanceof StreamedResponse) {
+            ob_start(function ($data) use ($swooleResponse) {
+                if (strlen($data) > 0) {
+                    $swooleResponse->write($data);
+                }
+
+                return '';
+            }, 1);
+
+            $octaneResponse->response->sendContent();
+
+            ob_end_clean();
+
+            $swooleResponse->end();
 
             return;
         }
 
-        foreach (str_split($content, 8192) as $chunk) {
-            $swooleResponse->write($chunk);
+        $content = $octaneResponse->response->getContent();
+
+        $length = strlen($content);
+
+        if ($length <= $this->chunkSize) {
+            $swooleResponse->write($content);
+        } else {
+            for ($offset = 0; $offset < $length; $offset += $this->chunkSize) {
+                $swooleResponse->write(substr($content, $offset, $this->chunkSize));
+            }
         }
 
         $swooleResponse->end();
