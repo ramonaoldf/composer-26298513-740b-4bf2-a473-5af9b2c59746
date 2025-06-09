@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
 
 class StartSwooleCommand extends Command implements SignalableCommandInterface
 {
-    use Concerns\InteractsWithServers;
+    use Concerns\InteractsWithServers, Concerns\InteractsWithEnvironmentVariables;
 
     /**
      * The command's signature.
@@ -68,15 +68,15 @@ class StartSwooleCommand extends Command implements SignalableCommandInterface
 
         $this->writeServerStateFile($serverStateFile, $extension);
 
+        $this->forgetEnvironmentVariables();
+
         $server = tap(new Process([
             (new PhpExecutableFinder)->find(), 'swoole-server', $serverStateFile->path(),
-        ], realpath(__DIR__.'/../../bin'), collect(array_merge($_ENV, [
+        ], realpath(__DIR__.'/../../bin'), [
+            'APP_ENV' => app()->environment(),
             'APP_BASE_PATH' => base_path(),
-            'LARAVEL_OCTANE' => 1, ]))->mapWithKeys(function ($value, $key) {
-                return in_array($key, ['APP_ENV', 'APP_BASE_PATH', 'LARAVEL_OCTANE'])
-                        ? [$key => $value]
-                        : [$key => false];
-            })->all(), null, null))->start();
+            'LARAVEL_OCTANE' => 1,
+        ]))->start();
 
         return $this->runServer($server, $inspector, 'swoole');
     }
@@ -121,10 +121,10 @@ class StartSwooleCommand extends Command implements SignalableCommandInterface
             'log_file' => storage_path('logs/swoole_http.log'),
             'log_level' => app()->environment('local') ? SWOOLE_LOG_INFO : SWOOLE_LOG_ERROR,
             'max_request' => $this->option('max-requests'),
-            'package_max_length' => 20 * 1024 * 1024,
+            'package_max_length' => 10 * 1024 * 1024,
             'reactor_num' => $this->workerCount($extension),
             'send_yield' => true,
-            'socket_buffer_size' => 128 * 1024 * 1024,
+            'socket_buffer_size' => 10 * 1024 * 1024,
             'task_max_request' => $this->option('max-requests'),
             'task_worker_num' => $this->taskWorkerCount($extension),
             'worker_num' => $this->workerCount($extension),
