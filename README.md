@@ -9,32 +9,11 @@
 
 ## Introduction
 
-Laravel Octane supercharges your application's performance by serving your application using high-powered application servers, including [Swoole](https://swoole.co.uk) and [RoadRunner](https://roadrunner.dev). Octane boots your application once, keeps it memory, and then feeds it requests at supersonic speeds.
+Laravel Octane supercharges your application's performance by serving your application using high-powered application servers, including [Swoole](https://swoole.co.uk) and [RoadRunner](https://roadrunner.dev). Octane boots your application once, keeps it in memory, and then feeds it requests at supersonic speeds.
 
 ## Documentation
 
 **IMPORTANT: Laravel Octane is within a beta period. It should only be used for local development and testing in order to improve the quality of the library and resolve any existing bugs. We are still in the process of ensuring Octane compatibility with all first-party Laravel packages.**
-
-### Package Support
-
-We are in the process of updating our first-party packages to ensure Octane compatibility. You can find a table of our progress below. You must be using the latest tagged release of these libraries to receive Octane compatibility:
-
-Package | Status
------------- | -------------
-Breeze | ✅ Operational
-Cashier | ✅ Operational
-Dusk | ✅ Operational
-Fortify | ✅ Operational
-Horizon UI | ✅ Operational
-Jetstream Inertia | ✅ Operational
-Jetstream Livewire | ✅ Operational
-Nova | ✅ Operational
-Passport | ✅ Operational
-Sanctum | ✅ Operational
-Scout | ✅ Operational
-Socialite | ✅ Operational
-Spark | ✅ Operational
-Telescope | ✅ Operational
 
 ### Installation
 
@@ -137,6 +116,8 @@ The Octane server can be started via the `octane:start` Artisan command. By defa
 php artisan octane:start
 ```
 
+By default, Octane will start the server on port 8000, so you may access your application in a web browser via `http://localhost:8000`.
+
 #### Watching For File Changes
 
 Since your application is loaded in memory once when the Octane server starts, any changes to your application's files will not be reflected when you refresh your browser. For example, route definitions added to your `routes/web.php` file will not be reflected until the server is restarted. For convenience, you may use the `--watch` flag to instruct Octane to automatically restart the server on any file changes within your application:
@@ -201,7 +182,7 @@ use App\Service;
  *
  * @return void
  */
-public function boot()
+public function register()
 {
     $this->app->singleton(Service::class, function ($app) {
         return new Service($app);
@@ -240,7 +221,7 @@ use App\Service;
  *
  * @return void
  */
-public function boot()
+public function register()
 {
     $this->app->singleton(Service::class, function ($app) {
         return new Service($app['request']);
@@ -284,7 +265,7 @@ use App\Service;
  *
  * @return void
  */
-public function boot()
+public function register()
 {
     $this->app->singleton(Service::class, function ($app) {
         return new Service($app->make('config'));
@@ -355,7 +336,7 @@ use Laravel\Octane\Facades\Octane;
 
 > **This feature requires [Swoole](#swoole).**
 
-When using Swoole, you may register "tick" operations that will be executed every specified number of seconds. You may register "tick" callbacks via the `tick` method. The first argument provided to the `tick` method should be a string that represents the name of the ticker. The second argument should be a callable that will be invoked at the specified interval. In this example, we will register a closure to be invoked every 10 seconds:
+When using Swoole, you may register "tick" operations that will be executed every specified number of seconds. You may register "tick" callbacks via the `tick` method. The first argument provided to the `tick` method should be a string that represents the name of the ticker. The second argument should be a callable that will be invoked at the specified interval. In this example, we will register a closure to be invoked every 10 seconds. Typically, the `tick` method should be called within the `boot` method of one of your application's service providers:
 
 ```php
 Octane::tick('simple-ticker', fn () => ray('Ticking...'))
@@ -384,7 +365,7 @@ Cache::store('octane')->put('framework', 'Laravel', 30);
 
 #### Cache Intervals
 
-In addition to the typical methods provided by Laravel's cache system, the Octane cache driver features interval based caches. These caches are automatically refreshed at the specified interval. For example, the following cache will be refreshed every five seconds:
+In addition to the typical methods provided by Laravel's cache system, the Octane cache driver features interval based caches. These caches are automatically refreshed at the specified interval and should be registered within the `boot` method of one of your application's service providers. For example, the following cache will be refreshed every five seconds:
 
 ```php
 use Illuminate\Support\Str;
